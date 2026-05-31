@@ -621,6 +621,7 @@ export default function Game() {
               mySocketId={mySocketId}
               onMoveTo={handleMoveTo}
               phase={phase}
+              emotes={emotes}
             />
           </div>
 

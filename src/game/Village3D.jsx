@@ -30,7 +30,7 @@ const SKIN_COLOR = 0xfecdd3; // Rosy skin tone
 // ============================================================
 // Village3D Component
 // ============================================================
-const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase }, ref) => {
+const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, ref) => {
   const [sceneReady, setSceneReady] = React.useState(false);
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
@@ -481,7 +481,70 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase }, ref) => 
         entry.isAdmin = p.isAdmin;
       }
     });
-  }, [players, mySocketId, phase, sceneReady]);
+
+    // 3. Update emotes dynamically above players' heads in 3D
+    Object.entries(players).forEach(([sid, p]) => {
+      const entry = playerMeshesRef.current[sid];
+      if (!entry || !entry.group) return;
+
+      const emoteData = emotes?.[sid];
+
+      if (emoteData) {
+        // Emote active! Show or update bubble
+        if (!entry.emoteObj) {
+          const div = document.createElement('div');
+          div.style.fontSize = '20px';
+          div.style.background = 'rgba(15,23,42,0.85)';
+          div.style.border = '1.5px solid rgba(139,92,246,0.45)';
+          div.style.boxShadow = '0 4px 12px rgba(0,0,0,0.6), 0 0 10px rgba(139,92,246,0.2)';
+          div.style.padding = '6px';
+          div.style.borderRadius = '50%';
+          div.style.width = '36px';
+          div.style.height = '36px';
+          div.style.display = 'flex';
+          div.style.alignItems = 'center';
+          div.style.justifyContent = 'center';
+          div.style.backdropFilter = 'blur(8px)';
+          div.style.pointerEvents = 'none';
+          div.style.animation = 'emotePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, emoteBob 1.5s ease-in-out infinite alternate';
+          div.textContent = emoteData.emoji;
+
+          // Inject custom CSS keyframes dynamically if not present
+          if (!document.getElementById('emote-keyframes')) {
+            const style = document.createElement('style');
+            style.id = 'emote-keyframes';
+            style.textContent = `
+              @keyframes emotePop {
+                0% { transform: scale(0) translateY(10px); opacity: 0; }
+                100% { transform: scale(1) translateY(0); opacity: 1; }
+              }
+              @keyframes emoteBob {
+                0% { transform: translateY(0); }
+                100% { transform: translateY(-6px); }
+              }
+            `;
+            document.head.appendChild(style);
+          }
+
+          const emoteLabel = new CSS2DObject(div);
+          emoteLabel.position.set(0, p.isAdmin ? 2.8 : 2.3, 0);
+          entry.group.add(emoteLabel);
+          entry.emoteObj = emoteLabel;
+        } else {
+          // Update emoji text if changed
+          if (entry.emoteObj.element.textContent !== emoteData.emoji) {
+            entry.emoteObj.element.textContent = emoteData.emoji;
+          }
+        }
+      } else {
+        // No emote active! Remove bubble if present
+        if (entry.emoteObj) {
+          entry.group.remove(entry.emoteObj);
+          entry.emoteObj = null;
+        }
+      }
+    });
+  }, [players, emotes, mySocketId, phase, sceneReady]);
 
   // Expose camera fly-to function
   useImperativeHandle(ref, () => ({
