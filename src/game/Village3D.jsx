@@ -266,7 +266,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
           // --- ADMIN (ANGEL) MOTION & FLAPPING WINGS ---
           // 1. Move towards target (X and Z only)
           const targetXZ = new THREE.Vector3(target.x, group.position.y, target.z);
-          group.position.lerp(targetXZ, 0.1);
+          group.position.lerp(targetXZ, 0.025); // Slowed down from 0.1 for smooth, elegant flight
 
           // 2. Hover high in the sky
           group.position.y = 2.0 + Math.sin(time * 2.5) * 0.25;
@@ -286,8 +286,8 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
           const wingLeft = group.getObjectByName('wingLeft');
           const wingRight = group.getObjectByName('wingRight');
           if (wingLeft && wingRight) {
-            const flapSpeed = targetXZ.distanceTo(group.position) > 0.1 ? 9 : 4;
-            const flapAmp = targetXZ.distanceTo(group.position) > 0.1 ? 0.6 : 0.3;
+            const flapSpeed = targetXZ.distanceTo(group.position) > 0.1 ? 5 : 2; // Relaxed wing flaps matching speed
+            const flapAmp = targetXZ.distanceTo(group.position) > 0.1 ? 0.45 : 0.25;
             wingLeft.rotation.y = 0.4 + Math.sin(time * flapSpeed) * flapAmp;
             wingRight.rotation.y = -0.4 - Math.sin(time * flapSpeed) * flapAmp;
           }
@@ -305,7 +305,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
 
           if (dist > 0.05) {
             // 60FPS fluid lerp glide
-            group.position.lerp(target, 0.14);
+            group.position.lerp(target, 0.035); // Slowed down from 0.14 to walk gracefully
             
             // Lock height to ground plane
             group.position.y = 0;
@@ -320,7 +320,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
           }
 
           // Walking limb swing animation
-          const walkCycle = time * 13;
+          const walkCycle = time * 6.0; // Slowed down limb swing to match the new velocity
           if (legLeft) legLeft.rotation.x = Math.sin(walkCycle) * 0.55;
           if (legRight) legRight.rotation.x = -Math.sin(walkCycle) * 0.55;
           if (armLeft) {

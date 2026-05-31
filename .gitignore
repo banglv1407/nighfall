@@ -7,3 +7,4 @@ server/nightfall.db-wal
 .env.*
 *.log
 .DS_Store
+server/tts_cache/
