@@ -257,16 +257,18 @@ let audioCtx = null;
 let subOsc = null;
 let windOsc = null;
 let droneGain = null;
+let currentAudio = null;
 
 const playCreepySpeech = (text, type) => {
   if (typeof window === 'undefined') return;
 
-  // Cancel any active speech synthesis
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
+  // 1. Cancel any active speech/audio synthesis
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
   }
 
-  // 1. Synthesize dramatic gothic sub-bass & wind drones
+  // 2. Synthesize dramatic gothic sub-bass & wind drones
   try {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (AudioContextClass) {
@@ -341,33 +343,23 @@ const playCreepySpeech = (text, type) => {
     console.error("Spooky Web Audio failed:", e);
   }
 
-  // 2. Synthesize deep, slow, haunting Vietnamese voice
-  if (window.speechSynthesis) {
-    // Strip emojis to prevent speech synthesizer hiccups
-    const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, '');
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    // Find matching Vietnamese localized voice
-    const voices = window.speechSynthesis.getVoices();
-    const viVoice = voices.find(v => v.lang.startsWith('vi'));
-    if (viVoice) {
-      utterance.voice = viVoice;
-    }
-
-    utterance.pitch = 0.52; // Very deep, ominous tone
-    utterance.rate = 0.73;  // Slow, theatrical speed
-    utterance.volume = 1.0;
-
-    window.speechSynthesis.speak(utterance);
+  // 3. Play high-quality cached Vietnamese TTS voice from Express backend
+  const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, '').trim();
+  if (cleanText) {
+    const ttsUrl = `${SOCKET_URL}/api/tts?text=${encodeURIComponent(cleanText)}`;
+    currentAudio = new Audio(ttsUrl);
+    currentAudio.play().catch(e => {
+      console.warn("Spooky Audio play blocked or failed:", e);
+    });
   }
 };
 
 const stopCreepySpeech = () => {
   if (typeof window === 'undefined') return;
 
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
   }
 
   // Smoothly fade out ambient rumble context
@@ -608,7 +600,7 @@ export default function Game() {
 
     s.on('narration:display', ({ text, type, duration }) => {
       setNarration({ text, type, visible: true });
-      setTimeout(() => setNarration(null), duration || 5000);
+      setTimeout(() => setNarration(null), duration || 30000);
     });
 
     s.on('narration:clear', () => setNarration(null));

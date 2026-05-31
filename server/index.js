@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
+import ttsRoutes from './routes/tts.js';
 import { getUserById } from './db.js';
 import { getRandomNarration } from './narration.js';
 
@@ -21,6 +22,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'nightfall-secret-change-in-prod';
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use('/api/auth', authRoutes);
+app.use('/api/tts', ttsRoutes);
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // Serve frontend in production
@@ -719,7 +721,7 @@ function enterNightPhase() {
   io.to('village').emit('narration:display', {
     text,
     type: 'night_start',
-    duration: 10000,
+    duration: 30000,
   });
 
   // Prompt nighttime requests privately
@@ -875,7 +877,7 @@ function enterDaytimePhase() {
   io.to('village').emit('narration:display', {
     text,
     type: uniqueKilled.length === 0 ? 'no_deaths' : 'werewolf_kill',
-    duration: 12000,
+    duration: 30000,
   });
 
   io.to('village').emit('game:state', getPublicState());
@@ -928,7 +930,7 @@ function enterVotingPhase() {
   io.to('village').emit('narration:display', {
     text,
     type: 'voting_start',
-    duration: 10000,
+    duration: 30000,
   });
 
   // Automatically execute bots voting actions
@@ -970,7 +972,7 @@ function enterDefensePhase() {
   io.to('village').emit('narration:display', {
     text,
     type: 'defense_start',
-    duration: 12000,
+    duration: 30000,
   });
 }
 
@@ -985,7 +987,7 @@ function enterRevotePhase() {
   io.to('village').emit('narration:display', {
     text: `🗳️ BIỂU QUYẾT TREO CỔ: Hãy chọn GIẾT (Kill) hoặc CỨU (Save) đối với ${defendant?.username || 'Bị Cáo'}!`,
     type: 'revote_start',
-    duration: 6000,
+    duration: 30000,
   });
 
   // Automatically execute bots revotes
@@ -1030,7 +1032,7 @@ function resolveExecutionPhase() {
       io.to('village').emit('narration:display', {
         text: `🃏 TRÒ CHƠI KẾT THÚC: Thằng Ngốc ${defendant.username} đã dụ dân làng treo cổ mình thành công! Thằng Ngốc thắng!`,
         type: 'jester_win',
-        duration: 10000,
+        duration: 30000,
       });
       return;
     }
@@ -1052,14 +1054,14 @@ function resolveExecutionPhase() {
     io.to('village').emit('narration:display', {
       text,
       type: 'execution',
-      duration: 12000,
+      duration: 30000,
     });
   } else {
     const text = getRandomNarration('spared', { name: defendant.username });
     io.to('village').emit('narration:display', {
       text,
       type: 'spared',
-      duration: 12000,
+      duration: 30000,
     });
   }
 
@@ -1094,7 +1096,7 @@ function checkWinConditions() {
     io.to('village').emit('narration:display', {
       text: `🏆 TRÒ CHƠI KẾT THÚC: Phe Sói cắn nuốt toàn bộ ngôi làng! Phe Sói thắng cuộc!`,
       type: 'game_over_wolves',
-      duration: 10000,
+      duration: 30000,
     });
     return true;
   }
@@ -1110,7 +1112,7 @@ function checkWinConditions() {
     io.to('village').emit('narration:display', {
       text: `🏆 TRÒ CHƠI KẾT THÚC: Dân làng đã tiêu diệt hoàn toàn lũ Sói độc ác! Dân Làng thắng cuộc!`,
       type: 'game_over_villagers',
-      duration: 10000,
+      duration: 30000,
     });
     return true;
   }
