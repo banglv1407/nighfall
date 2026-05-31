@@ -89,37 +89,106 @@ io.on('connection', (socket) => {
     return;
   }
 
-  // Setup dynamic player profile
-  const player = {
-    id: user.id,
-    username: user.username,
-    gender: user.gender,
-    hairStyle: user.hair_style,
-    hairColor: user.hair_color,
-    isAdmin: !!user.is_admin,
-    x: (Math.random() - 0.5) * 8,
-    y: (Math.random() - 0.5) * 8,
-    online: true,
+  // Check if this user was already in the game state (e.g. reconnected under a new socket.id)
+  let existingSocketId = Object.keys(gameState.players).find(
+    sid => gameState.players[sid].id === user.id
+  );
+
+  let player;
+  if (existingSocketId) {
+    // Reconnection! Migrate the player object to the new socket.id
+    player = gameState.players[existingSocketId];
+    player.online = true;
     
-    // In-game stats
-    isAlive: true,
-    role: user.is_admin ? 'spectator' : 'villager',
-    loverId: null,      // SocketId of partner if linked by Cupid
-    guardLastProtected: null,
-  };
+    // Update reference to the new socket.id
+    delete gameState.players[existingSocketId];
+    gameState.players[socket.id] = player;
 
-  gameState.players[socket.id] = player;
+    console.log(`🔌 Player reconnected: ${player.username} (migrated from ${existingSocketId} to ${socket.id})`);
+    
+    // Update lover's pointer to the new socket.id if linked
+    Object.keys(gameState.players).forEach(sid => {
+      if (gameState.players[sid].loverId === existingSocketId) {
+        gameState.players[sid].loverId = socket.id;
+      }
+    });
 
-  // First admin connection claims Host
-  if (user.is_admin && !gameState.adminSocketId) {
-    gameState.adminSocketId = socket.id;
+    // Update active night action targets to the new socket.id
+    if (gameState.nightActions.werewolfTarget === existingSocketId) {
+      gameState.nightActions.werewolfTarget = socket.id;
+    }
+    if (gameState.nightActions.seerTarget === existingSocketId) {
+      gameState.nightActions.seerTarget = socket.id;
+    }
+    if (gameState.nightActions.guardTarget === existingSocketId) {
+      gameState.nightActions.guardTarget = socket.id;
+    }
+    if (gameState.nightActions.witchPoison === existingSocketId) {
+      gameState.nightActions.witchPoison = socket.id;
+    }
+    if (gameState.nightActions.cupidLover1 === existingSocketId) {
+      gameState.nightActions.cupidLover1 = socket.id;
+    }
+    if (gameState.nightActions.cupidLover2 === existingSocketId) {
+      gameState.nightActions.cupidLover2 = socket.id;
+    }
+
+    // Update votes/revotes with the new socket.id
+    if (gameState.votes[existingSocketId]) {
+      gameState.votes[socket.id] = gameState.votes[existingSocketId];
+      delete gameState.votes[existingSocketId];
+    }
+    Object.keys(gameState.votes).forEach(voterId => {
+      if (gameState.votes[voterId] === existingSocketId) {
+        gameState.votes[voterId] = socket.id;
+      }
+    });
+
+    if (gameState.revotes[existingSocketId]) {
+      gameState.revotes[socket.id] = gameState.revotes[existingSocketId];
+      delete gameState.revotes[existingSocketId];
+    }
+
+    if (gameState.defendantSocketId === existingSocketId) {
+      gameState.defendantSocketId = socket.id;
+    }
+
+    // If they were admin, update adminSocketId
+    if (player.isAdmin) {
+      gameState.adminSocketId = socket.id;
+    }
+  } else {
+    // New connection! Setup dynamic player profile
+    player = {
+      id: user.id,
+      username: user.username,
+      gender: user.gender,
+      hairStyle: user.hair_style,
+      hairColor: user.hair_color,
+      isAdmin: !!user.is_admin,
+      x: (Math.random() - 0.5) * 8,
+      y: (Math.random() - 0.5) * 8,
+      online: true,
+      
+      // In-game stats
+      isAlive: true,
+      role: user.is_admin ? 'spectator' : 'villager',
+      loverId: null,      // SocketId of partner if linked by Cupid
+      guardLastProtected: null,
+    };
+
+    gameState.players[socket.id] = player;
+
+    // First admin connection claims Host
+    if (user.is_admin && !gameState.adminSocketId) {
+      gameState.adminSocketId = socket.id;
+    }
+
+    console.log(`🔌 Player connected: ${player.username} (${socket.id})`);
   }
 
   socket.join('village');
   io.to('village').emit('game:state', getPublicState());
-
-  // Log action
-  console.log(`🔌 Player connected: ${player.username} (${socket.id})`);
 
   // --- MOVEMENT HANDLER ---
   socket.on('player:move', (data) => {
@@ -381,17 +450,20 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`🔌 Player disconnected: ${player.username} (${socket.id})`);
     
-    // Check if defendant disconnected
-    if (gameState.defendantSocketId === socket.id) {
-      gameState.defendantSocketId = null;
-    }
-
-    delete gameState.players[socket.id];
-    delete gameState.chatCooldowns[socket.id];
-
-    if (gameState.adminSocketId === socket.id) {
-      // Pass admin to another host if available
-      gameState.adminSocketId = Object.keys(gameState.players).find(sid => gameState.players[sid].isAdmin) || null;
+    const p = gameState.players[socket.id];
+    if (p) {
+      if (gameState.phase === 'lobby') {
+        // In lobby phase, players can join/leave freely
+        delete gameState.players[socket.id];
+        delete gameState.chatCooldowns[socket.id];
+        
+        if (gameState.adminSocketId === socket.id) {
+          gameState.adminSocketId = Object.keys(gameState.players).find(sid => gameState.players[sid].isAdmin) || null;
+        }
+      } else {
+        // During an active game, just mark them as offline to preserve their role, coords, and state
+        p.online = false;
+      }
     }
 
     io.to('village').emit('game:state', getPublicState());
@@ -1067,12 +1139,17 @@ function resetGameSession() {
   gameState.revotes = {};
   gameState.lastNightCasualties = [];
   
+  // Purge players who disconnected during the game, and reset active players
   Object.keys(gameState.players).forEach(sid => {
     const p = gameState.players[sid];
-    p.isAlive = true;
-    p.role = p.isAdmin ? 'spectator' : 'villager';
-    p.loverId = null;
-    p.guardLastProtected = null;
+    if (!p.online) {
+      delete gameState.players[sid];
+    } else {
+      p.isAlive = true;
+      p.role = p.isAdmin ? 'spectator' : 'villager';
+      p.loverId = null;
+      p.guardLastProtected = null;
+    }
   });
 
   io.to('village').emit('game:phase', { phase: 'lobby' });

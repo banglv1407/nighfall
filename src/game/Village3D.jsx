@@ -45,6 +45,12 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase }, ref) => 
   const mouseRef = useRef(new THREE.Vector2());
   const initializedRef = useRef(false);
 
+  // Decouple onMoveTo trigger to prevent Three.js scene recreation
+  const onMoveToRef = useRef(onMoveTo);
+  useEffect(() => {
+    onMoveToRef.current = onMoveTo;
+  }, [onMoveTo]);
+
   // --- Init Three.js scene ---
   const initScene = useCallback(() => {
     if (initializedRef.current || !containerRef.current) return;
@@ -149,12 +155,12 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase }, ref) => 
       });
 
       const intersects = raycasterRef.current.intersectObjects(groundObjects);
-      if (intersects.length > 0 && onMoveTo) {
+      if (intersects.length > 0 && onMoveToRef.current) {
         const pt = intersects[0].point;
         // Limit path movement to ground radius
         const distance = Math.sqrt(pt.x * pt.x + pt.z * pt.z);
         if (distance < 20) {
-          onMoveTo(pt.x, pt.z);
+          onMoveToRef.current(pt.x, pt.z);
         }
       }
     };
@@ -379,7 +385,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase }, ref) => 
       labelRenderer.domElement.remove();
       container.innerHTML = '';
     };
-  }, [onMoveTo]);
+  }, []);
 
   // Init on mount
   useEffect(() => {
