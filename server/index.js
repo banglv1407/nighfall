@@ -219,7 +219,7 @@ io.on('connection', (socket) => {
     
     const { actionType, targetId } = data; // targetId is socketId of target player
     const targetPlayer = gameState.players[targetId];
-    if (!targetPlayer && actionType !== 'witch_pass' && actionType !== 'witch_heal') return;
+    if (!targetPlayer && actionType !== 'witch_pass' && actionType !== 'witch_heal' && actionType !== 'cupid_link') return;
 
     if (targetPlayer && (targetPlayer.role === 'spectator' || targetPlayer.isAdmin) && actionType !== 'witch_pass' && actionType !== 'witch_heal') {
       socket.emit('error', { message: 'Không thể tương tác với Quản Trò!' });
