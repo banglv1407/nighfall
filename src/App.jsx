@@ -68,14 +68,14 @@ const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Hide navbar on auth pages
-  if (location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/game') return null;
-
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Hide navbar on auth pages
+  if (location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/game') return null;
 
   const navLinks = [
     { name: 'Home', path: '/' },
@@ -436,7 +436,7 @@ const App = () => {
         </Routes>
       </AnimatePresence>
 
-      <CookieBanner />
+      {/* <CookieBanner /> */}
     </div>
   );
 };

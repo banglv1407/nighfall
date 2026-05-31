@@ -17,7 +17,7 @@ const PREVIEW_SIZE = 110;
 
 export default function Register() {
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ username: '', email: '', password: '' });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,7 +43,6 @@ export default function Register() {
     e.preventDefault();
     setError('');
     if (form.username.length < 3) { setError('Username tối thiểu 3 ký tự'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setError('Email không hợp lệ'); return; }
     if (form.password.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự'); return; }
     setStep(2);
   };
@@ -51,7 +50,7 @@ export default function Register() {
   const handleRegister = async () => {
     setError(''); setLoading(true);
     try {
-      await register(form.username, form.email, form.password, { gender, hairStyle, hairColor });
+      await register(form.username, null, form.password, { gender, hairStyle, hairColor });
       navigate('/game', { replace: true });
     } catch (err) {
       setError(err.message);
@@ -100,12 +99,7 @@ export default function Register() {
                       className="w-full bg-[#1a2035] border border-[#8b5cf6]/30 rounded-lg px-4 py-3 text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-[#8b5cf6] focus:shadow-[0_0_15px_rgba(139,92,246,0.2)] transition-all font-inter text-sm"
                       placeholder="Tên của bạn trong làng..." required minLength={3} maxLength={20} />
                   </div>
-                  <div>
-                    <label className="block text-[#94a3b8] text-xs font-cinzel tracking-wider mb-2">EMAIL</label>
-                    <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})}
-                      className="w-full bg-[#1a2035] border border-[#8b5cf6]/30 rounded-lg px-4 py-3 text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-[#8b5cf6] focus:shadow-[0_0_15px_rgba(139,92,246,0.2)] transition-all font-inter text-sm"
-                      placeholder="email@example.com" required />
-                  </div>
+
                   <div className="relative">
                     <label className="block text-[#94a3b8] text-xs font-cinzel tracking-wider mb-2">MẬT KHẨU</label>
                     <input type={showPw ? 'text' : 'password'} value={form.password} onChange={e => setForm({...form, password: e.target.value})}
