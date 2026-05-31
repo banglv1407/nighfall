@@ -1,0 +1,9 @@
+node_modules/
+dist/
+server/nightfall.db
+server/nightfall.db-shm
+server/nightfall.db-wal
+.env
+.env.*
+*.log
+.DS_Store
