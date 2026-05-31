@@ -53,7 +53,7 @@ function TargetSymbol(props) {
 // ============================================================
 // CinematicNarration (Typewriter cinematic text effects)
 // ============================================================
-const CinematicNarration = ({ text }) => {
+const CinematicNarration = ({ text, type }) => {
   const [displayedText, setDisplayedText] = useState('');
 
   useEffect(() => {
@@ -67,28 +67,184 @@ const CinematicNarration = ({ text }) => {
       } else {
         clearInterval(interval);
       }
-    }, 25); // Fast, gradual typewriting (25ms per char)
+    }, 20); // Fast typewriting (20ms per char)
     return () => clearInterval(interval);
   }, [text]);
+
+  const isWerewolfKill = type === 'werewolf_kill';
+  const isNightStart = type === 'night_start';
+  const isVote = type === 'voting_start' || type === 'defense_start' || type === 'revote_start' || type === 'execution';
+  const isSpared = type === 'spared';
+  const isGameOver = type?.startsWith('game_over') || type === 'jester_win';
+
+  // Master container shake for werewolf bite
+  const containerVariants = {
+    initial: { scale: 1 },
+    animate: isWerewolfKill ? {
+      x: [0, -12, 12, -12, 12, -6, 6, -3, 3, 0],
+      y: [0, 6, -6, 6, -6, 3, -3, 1.5, -1.5, 0],
+      transition: { duration: 1.0, ease: "easeInOut", delay: 0.1 }
+    } : {}
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-8 pointer-events-none select-none"
+      className={`absolute inset-0 z-50 flex flex-col items-center justify-center p-8 pointer-events-none select-none overflow-hidden ${
+        isWerewolfKill ? 'bg-black/90' : 'bg-black/85 backdrop-blur-md'
+      }`}
     >
+      {/* 🩸 BLOOD SPLATTER VIGNETTE OVERLAY (pulsing, scary heartbeat vignette) */}
+      {isWerewolfKill && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.75, 0.55, 0.75, 0.55] }}
+          transition={{ duration: 12, ease: "linear" }}
+          className="absolute inset-0 border-[35px] border-red-955/45 pointer-events-none mix-blend-multiply shadow-[inset_0_0_90px_rgba(127,29,29,0.9)] z-20"
+        />
+      )}
+
+      {/* 🩸 DRIFTING DRIZZLING BLOOD DRIPS */}
+      {isWerewolfKill && (
+        <div className="absolute inset-x-0 top-0 h-56 pointer-events-none overflow-hidden flex justify-around z-10 opacity-70">
+          {[...Array(12)].map((_, i) => (
+            <motion.div
+              key={i}
+              initial={{ y: -60, opacity: 0 }}
+              animate={{ y: [-60, 0, 100], opacity: [0, 0.9, 0] }}
+              transition={{
+                duration: 2.5 + Math.random() * 3.5,
+                repeat: Infinity,
+                delay: Math.random() * 2,
+                ease: "easeIn"
+              }}
+              className="w-1 bg-red-800 rounded-b-full shadow-[0_0_8px_rgba(220,38,38,0.7)]"
+              style={{ 
+                height: `${20 + Math.random() * 45}px`, 
+                opacity: 0.6 + Math.random() * 0.4 
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ⚔️ RED GLOWING DIAGONAL CLAW SLASHES (Rips across the screen!) */}
+      {isWerewolfKill && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden z-15">
+          <div className="relative w-full max-w-2xl h-80 flex flex-col justify-center gap-10">
+            {/* Claw 1 */}
+            <motion.div 
+              initial={{ width: 0, opacity: 0, rotate: -25, scaleX: 0 }}
+              animate={{ width: ["0%", "130%", "130%", "0%"], opacity: [0, 1, 1, 0], scaleX: [0.3, 1, 1, 0.3], x: ["-15%", "115%"] }}
+              transition={{ duration: 1.3, times: [0, 0.25, 0.8, 1], ease: "easeInOut", delay: 0.15 }}
+              className="h-3.5 bg-gradient-to-r from-red-700 via-red-500 to-transparent blur-[1px] shadow-[0_0_20px_rgba(220,38,38,0.9)]"
+            />
+            {/* Claw 2 */}
+            <motion.div 
+              initial={{ width: 0, opacity: 0, rotate: -25, scaleX: 0 }}
+              animate={{ width: ["0%", "130%", "130%", "0%"], opacity: [0, 1, 1, 0], scaleX: [0.3, 1, 1, 0.3], x: ["-5%", "125%"] }}
+              transition={{ duration: 1.3, times: [0, 0.25, 0.8, 1], ease: "easeInOut", delay: 0.3 }}
+              className="h-4 bg-gradient-to-r from-red-700 via-red-500 to-transparent blur-[1.5px] shadow-[0_0_25px_rgba(220,38,38,1.0)]"
+            />
+            {/* Claw 3 */}
+            <motion.div 
+              initial={{ width: 0, opacity: 0, rotate: -25, scaleX: 0 }}
+              animate={{ width: ["0%", "130%", "130%", "0%"], opacity: [0, 1, 1, 0], scaleX: [0.3, 1, 1, 0.3], x: ["-15%", "115%"] }}
+              transition={{ duration: 1.3, times: [0, 0.25, 0.8, 1], ease: "easeInOut", delay: 0.45 }}
+              className="h-3 bg-gradient-to-r from-red-700 via-red-500 to-transparent blur-[1px] shadow-[0_0_20px_rgba(220,38,38,0.9)]"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 🌫️ GOTHIC DRIFTING NIGHT MIST FOR NIGHTFALL PHASES */}
+      {isNightStart && (
+        <div className="absolute inset-x-0 bottom-0 h-1/2 pointer-events-none opacity-50 select-none overflow-hidden z-10">
+          <motion.div 
+            animate={{ x: ["-15%", "15%", "-15%"] }}
+            transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute w-[130%] h-full bg-gradient-to-t from-[#0e0c25]/30 to-transparent blur-3xl"
+          />
+        </div>
+      )}
+
+      {/* ⚖️ GOLDEN / AMBER VIGNETTE JUDGEMENT DAY OVERLAY */}
+      {isVote && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.4, 0.3, 0.4] }}
+          transition={{ duration: 10, ease: "linear" }}
+          className="absolute inset-0 border-[20px] border-amber-955/20 pointer-events-none shadow-[inset_0_0_60px_rgba(217,119,6,0.4)] z-20"
+        />
+      )}
+
+      {/* 🏆 GLORIOUS GAME OVER GOLD WIN OVERLAY */}
+      {isGameOver && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.65, 0.5, 0.65] }}
+          transition={{ duration: 10, ease: "linear" }}
+          className="absolute inset-0 border-[25px] border-emerald-955/20 pointer-events-none shadow-[inset_0_0_70px_rgba(16,185,129,0.5)] z-20"
+        />
+      )}
+
+      {/* Cinematic Text Block with shake variant */}
       <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.8 }}
-        className="max-w-3xl text-center space-y-6"
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+        className="max-w-3xl text-center space-y-7 z-30 select-none"
       >
-        <Moon className="text-[#8b5cf6] w-14 h-14 mx-auto animate-pulse mb-2" />
-        <p className="font-cinzel text-xl md:text-3xl font-bold text-[#e8d5b7] tracking-wider leading-relaxed text-glow">
+        {/* Dynamic header icon */}
+        {isWerewolfKill ? (
+          <motion.div
+            animate={{ scale: [0.95, 1.25, 1.25, 0.95], rotate: [0, -10, 10, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            className="mx-auto mb-4 relative flex items-center justify-center w-24 h-24 text-red-500 filter drop-shadow-[0_0_20px_rgba(239,68,68,0.7)]"
+          >
+            <Skull className="w-16 h-16" />
+          </motion.div>
+        ) : isNightStart ? (
+          <motion.div
+            animate={{ rotate: 360, scale: [0.95, 1.05, 0.95] }}
+            transition={{ rotate: { duration: 40, repeat: Infinity, ease: "linear" }, scale: { duration: 6, repeat: Infinity, ease: "easeInOut" } }}
+            className="mx-auto mb-4 relative flex items-center justify-center w-20 h-20 text-[#a78bfa] filter drop-shadow-[0_0_15px_rgba(167,139,250,0.6)]"
+          >
+            <Moon className="w-14 h-14" />
+          </motion.div>
+        ) : isVote ? (
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            className="mx-auto mb-4 flex items-center justify-center w-20 h-20 text-amber-500 filter drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]"
+          >
+            <Shield className="w-14 h-14" />
+          </motion.div>
+        ) : isGameOver ? (
+          <motion.div
+            animate={{ scale: [1, 1.15, 1] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            className="mx-auto mb-4 flex items-center justify-center w-24 h-24 text-emerald-400 filter drop-shadow-[0_0_20px_rgba(52,211,153,0.7)]"
+          >
+            <Skull className="w-16 h-16" />
+          </motion.div>
+        ) : (
+          <Moon className="text-[#8b5cf6] w-14 h-14 mx-auto animate-pulse mb-2" />
+        )}
+
+        <p className={`font-cinzel text-xl md:text-3xl font-bold tracking-wider leading-relaxed text-glow ${
+          isWerewolfKill ? 'text-red-500 font-extrabold shadow-red-glow animate-pulse' : 'text-[#e8d5b7]'
+        }`}>
           {displayedText}
         </p>
-        <div className="w-28 h-0.5 bg-gradient-to-r from-transparent via-[#8b5cf6] to-transparent mx-auto mt-4 animate-pulse"></div>
+
+        <div className={`w-32 h-0.5 mx-auto mt-4 animate-pulse bg-gradient-to-r ${
+          isWerewolfKill 
+            ? 'from-transparent via-red-600 to-transparent shadow-[0_0_8px_rgba(220,38,38,0.8)]' 
+            : 'from-transparent via-[#8b5cf6] to-transparent shadow-glow'
+        }`} />
       </motion.div>
     </motion.div>
   );
@@ -471,7 +627,7 @@ export default function Game() {
           {/* Typewriter Cinematic Narration Overlay */}
           <AnimatePresence>
             {narration && (
-              <CinematicNarration text={narration.text} />
+              <CinematicNarration text={narration.text} type={narration.type} />
             )}
           </AnimatePresence>
 

@@ -671,6 +671,7 @@ function enterNightPhase() {
   const text = getRandomNarration('night_start');
   io.to('village').emit('narration:display', {
     text,
+    type: 'night_start',
     duration: 10000,
   });
 
@@ -823,6 +824,7 @@ function enterDaytimePhase() {
 
   io.to('village').emit('narration:display', {
     text,
+    type: uniqueKilled.length === 0 ? 'no_deaths' : 'werewolf_kill',
     duration: 12000,
   });
 
@@ -875,6 +877,7 @@ function enterVotingPhase() {
   const text = getRandomNarration('voting_start');
   io.to('village').emit('narration:display', {
     text,
+    type: 'voting_start',
     duration: 10000,
   });
 }
@@ -913,6 +916,7 @@ function enterDefensePhase() {
   const text = getRandomNarration('defense_start', { name: defendant.username });
   io.to('village').emit('narration:display', {
     text,
+    type: 'defense_start',
     duration: 12000,
   });
 }
@@ -927,6 +931,7 @@ function enterRevotePhase() {
   const defendant = gameState.players[gameState.defendantSocketId];
   io.to('village').emit('narration:display', {
     text: `🗳️ BIỂU QUYẾT TREO CỔ: Hãy chọn GIẾT (Kill) hoặc CỨU (Save) đối với ${defendant?.username || 'Bị Cáo'}!`,
+    type: 'revote_start',
     duration: 6000,
   });
 }
@@ -968,6 +973,7 @@ function resolveExecutionPhase() {
       });
       io.to('village').emit('narration:display', {
         text: `🃏 TRÒ CHƠI KẾT THÚC: Thằng Ngốc ${defendant.username} đã dụ dân làng treo cổ mình thành công! Thằng Ngốc thắng!`,
+        type: 'jester_win',
         duration: 10000,
       });
       return;
@@ -989,12 +995,14 @@ function resolveExecutionPhase() {
     const text = getRandomNarration('execution', { name: defendant.username });
     io.to('village').emit('narration:display', {
       text,
+      type: 'execution',
       duration: 12000,
     });
   } else {
     const text = getRandomNarration('spared', { name: defendant.username });
     io.to('village').emit('narration:display', {
       text,
+      type: 'spared',
       duration: 12000,
     });
   }
@@ -1029,6 +1037,7 @@ function checkWinConditions() {
     });
     io.to('village').emit('narration:display', {
       text: `🏆 TRÒ CHƠI KẾT THÚC: Phe Sói cắn nuốt toàn bộ ngôi làng! Phe Sói thắng cuộc!`,
+      type: 'game_over_wolves',
       duration: 10000,
     });
     return true;
@@ -1044,6 +1053,7 @@ function checkWinConditions() {
     });
     io.to('village').emit('narration:display', {
       text: `🏆 TRÒ CHƠI KẾT THÚC: Dân làng đã tiêu diệt hoàn toàn lũ Sói độc ác! Dân Làng thắng cuộc!`,
+      type: 'game_over_villagers',
       duration: 10000,
     });
     return true;
