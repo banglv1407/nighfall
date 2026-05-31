@@ -6,7 +6,6 @@ import jwt from 'jsonwebtoken';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
-import ttsRoutes from './routes/tts.js';
 import { getUserById } from './db.js';
 import { getRandomNarration } from './narration.js';
 
@@ -22,7 +21,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'nightfall-secret-change-in-prod';
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use('/api/auth', authRoutes);
-app.use('/api/tts', ttsRoutes);
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // Serve frontend in production
@@ -212,6 +210,49 @@ io.on('connection', (socket) => {
         emoji: data.emoji || '👋',
       });
     }
+  });
+
+  // --- REAL-TIME SERVER-AUTHORITATIVE VOICE STREAM BROADCAST ---
+  socket.on('voice:stream', (buffer) => {
+    const sender = gameState.players[socket.id];
+    if (!sender) return;
+
+    // Stream binary voice chunks to eligible village players based on active phase rules
+    Object.keys(gameState.players).forEach(sid => {
+      if (sid === socket.id) return; // Do not echo back to sender
+      const receiver = gameState.players[sid];
+      if (!receiver || !receiver.online) return;
+
+      // Rule 1: Dead players are muted to the living, and can only talk in the Spirit World (Ghost chat)
+      if (!sender.isAlive) {
+        if (!receiver.isAlive) {
+          io.to(sid).emit('voice:broadcast', { senderId: socket.id, buffer });
+        }
+        return;
+      }
+
+      // Rule 2: Living players cannot hear whispers of the dead
+      if (!receiver.isAlive) return;
+
+      // Rule 3: Ban Đêm (Night Phase) -> Only Werewolves can talk & coordinate together in private channels
+      if (gameState.phase === 'night') {
+        if (sender.role === 'werewolf' && receiver.role === 'werewolf') {
+          io.to(sid).emit('voice:broadcast', { senderId: socket.id, buffer });
+        }
+        return;
+      }
+
+      // Rule 4: Biện Hộ (Defense Phase) -> Only the designated defendant is unmuted to defend themselves
+      if (gameState.phase === 'defense') {
+        if (socket.id === gameState.defendantSocketId) {
+          io.to(sid).emit('voice:broadcast', { senderId: socket.id, buffer });
+        }
+        return;
+      }
+
+      // Default (Day, Vote, Lobby, GameOver) -> All living players can speak and hear each other in real-time
+      io.to(sid).emit('voice:broadcast', { senderId: socket.id, buffer });
+    });
   });
 
   // --- SECURE NIGHT GAME ACTIONS ---

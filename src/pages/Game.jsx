@@ -257,16 +257,9 @@ let audioCtx = null;
 let subOsc = null;
 let windOsc = null;
 let droneGain = null;
-let currentAudio = null;
 
 const playCreepySpeech = (text, type) => {
   if (typeof window === 'undefined') return;
-
-  // 1. Cancel any active speech/audio synthesis
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-  }
 
   // 2. Synthesize dramatic gothic sub-bass & wind drones
   try {
@@ -342,25 +335,10 @@ const playCreepySpeech = (text, type) => {
   } catch (e) {
     console.error("Spooky Web Audio failed:", e);
   }
-
-  // 3. Play high-quality cached Vietnamese TTS voice from Express backend
-  const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, '').trim();
-  if (cleanText) {
-    const ttsUrl = `${SOCKET_URL}/api/tts?text=${encodeURIComponent(cleanText)}`;
-    currentAudio = new Audio(ttsUrl);
-    currentAudio.play().catch(e => {
-      console.warn("Spooky Audio play blocked or failed:", e);
-    });
-  }
 };
 
 const stopCreepySpeech = () => {
   if (typeof window === 'undefined') return;
-
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-  }
 
   // Smoothly fade out ambient rumble context
   try {
@@ -415,7 +393,80 @@ export default function Game() {
   const [voteCounts, setVoteCounts] = useState({});
   const [defendantSocketId, setDefendantSocketId] = useState(null);
   const [revotes, setRevotes] = useState({ killVotes: 0, saveVotes: 0 });
-  const [gameOverData, setGameOverData] = useState(null);
+  // Realtime Voice Chat states
+  const [isMicConnected, setIsMicConnected] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [speakingPlayers, setSpeakingPlayers] = useState({});
+  const mediaRecorderRef = useRef(null);
+  const micStreamRef = useRef(null);
+
+  // Auto-cleanup idle speaker highlights
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setSpeakingPlayers(prev => {
+        const next = { ...prev };
+        let changed = false;
+        Object.entries(next).forEach(([sid, timestamp]) => {
+          if (now - timestamp > 1200) {
+            delete next[sid];
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Connect and toggle microphone voice streaming
+  const toggleMic = async () => {
+    if (!socket) return;
+
+    if (isMicConnected) {
+      stopMicRecording();
+      setIsMicConnected(false);
+      setIsMuted(true);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStreamRef.current = stream;
+        setIsMicConnected(true);
+        setIsMuted(false);
+
+        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm; codecs=opus' });
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = async (e) => {
+          if (e.data && e.data.size > 0 && socket) {
+            const arrayBuffer = await e.data.arrayBuffer();
+            socket.emit('voice:stream', arrayBuffer);
+          }
+        };
+
+        recorder.start(200); // 200ms audio chunks for low latency
+        console.log("🎤 Realtime Microphone recording started successfully!");
+      } catch (err) {
+        console.error("Failed to access microphone:", err);
+        alert("⚠️ Không thể truy cập Microphone! Vui lòng kiểm tra quyền thiết bị của bạn.");
+      }
+    }
+  };
+
+  const stopMicRecording = () => {
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    } catch (e) {}
+    try {
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+    } catch (e) {}
+    mediaRecorderRef.current = null;
+    micStreamRef.current = null;
+  };
 
   // Autoscroll chat
   useEffect(() => {
@@ -626,8 +677,23 @@ export default function Game() {
       alert(`⚠️ Lỗi: ${err.message}`);
     });
 
+    s.on('voice:broadcast', ({ senderId, buffer }) => {
+      setSpeakingPlayers(prev => ({ ...prev, [senderId]: Date.now() }));
+      try {
+        const blob = new Blob([buffer], { type: 'audio/webm; codecs=opus' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.play().catch(() => {});
+        audio.onended = () => { URL.revokeObjectURL(url); };
+      } catch (e) {}
+    });
+
     setSocket(s);
-    return () => { s.close(); setSocket(null); };
+    return () => { 
+      s.close(); 
+      setSocket(null); 
+      stopMicRecording(); 
+    };
   }, [navigate]);
 
   // Handle 3D click-to-move
@@ -714,6 +780,30 @@ export default function Game() {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* 🎤 REALTIME VOICE CHAT MICROPHONE TOGGLE BUTTON */}
+          <button 
+            onClick={toggleMic}
+            disabled={!socket}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-cinzel font-bold transition-all ${
+              isMicConnected 
+                ? 'bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981] shadow-[0_0_10px_rgba(16,185,129,0.3)] animate-pulse' 
+                : 'bg-white/5 border-white/10 text-[#64748b] hover:border-white/20 hover:text-white'
+            }`}
+            title={isMicConnected ? "Nhấp để tắt Mic" : "Nhấp để kết nối Mic nói chuyện"}
+          >
+            {isMicConnected ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-[#10b981] animate-ping" />
+                🎤 MIC: BẬT
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-gray-500" />
+                🎤 MIC: TẮT
+              </>
+            )}
+          </button>
+
           <span className="text-xs text-[#94a3b8] font-cinzel flex items-center gap-1.5 bg-[#1a2035] px-3 py-1.5 rounded-full border border-white/5">
             <Users size={14} className="text-[#8b5cf6]" /> {playerList.length} Dân Làng
           </span>
@@ -1209,6 +1299,7 @@ export default function Game() {
                             {p.isAdmin && <span className="text-[#f59e0b] text-[10px]" title="Host">👑</span>}
                             {p.isBot && <span className="text-[#3b82f6] text-[8px] px-1 py-0.5 rounded bg-[#3b82f6]/10 border border-[#3b82f6]/30 font-bold font-cinzel">BOT</span>}
                             {sid === defendantSocketId && <span className="text-[#a855f7] text-[10px] font-bold">⚖️ BỊ CÁO</span>}
+                            {speakingPlayers[sid] && <span className="text-[#10b981] animate-pulse font-bold text-[10px]" title="Đang phát biểu...">🎙️</span>}
                           </div>
                         </div>
 
