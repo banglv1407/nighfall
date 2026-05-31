@@ -923,7 +923,7 @@ export default function Game() {
                 width: `${chatSize.width}px`,
                 height: `${chatSize.height}px`,
               }}
-              className="z-20 bg-black/75 border border-[#8b5cf6]/35 backdrop-blur-md rounded-2xl flex flex-col shadow-2xl hover:border-[#8b5cf6]/60 transition-colors shadow-[0_10px_35px_rgba(0,0,0,0.8)] overflow-hidden select-none"
+              className="z-20 bg-black/35 border border-[#8b5cf6]/35 backdrop-blur-[5px] rounded-2xl flex flex-col shadow-2xl hover:border-[#8b5cf6]/60 transition-colors shadow-[0_10px_35px_rgba(0,0,0,0.8)] overflow-hidden select-none"
             >
               {/* Drag Header Bar */}
               <div 
