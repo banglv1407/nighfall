@@ -250,6 +250,146 @@ const CinematicNarration = ({ text, type }) => {
   );
 };
 
+// ============================================================
+// 👻 HAUNTING GOTHIC VOICE & WEB AUDIO DRONE SYNTHESIZER
+// ============================================================
+let audioCtx = null;
+let subOsc = null;
+let windOsc = null;
+let droneGain = null;
+
+const playCreepySpeech = (text, type) => {
+  if (typeof window === 'undefined') return;
+
+  // Cancel any active speech synthesis
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+
+  // 1. Synthesize dramatic gothic sub-bass & wind drones
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      if (!audioCtx) {
+        audioCtx = new AudioContextClass();
+      }
+      
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      // Main output gain node
+      droneGain = audioCtx.createGain();
+      droneGain.gain.setValueAtTime(0, audioCtx.currentTime);
+      droneGain.gain.linearRampToValueAtTime(type === 'werewolf_kill' ? 0.38 : 0.28, audioCtx.currentTime + 1.5);
+      droneGain.connect(audioCtx.destination);
+
+      // Low pass filter for dark, heavy gothic resonance
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(95, audioCtx.currentTime);
+      lp.connect(droneGain);
+
+      // Sub-Bass: Deep rumbling G#1 / G1 note (52Hz)
+      subOsc = audioCtx.createOscillator();
+      subOsc.type = 'triangle';
+      subOsc.frequency.setValueAtTime(52, audioCtx.currentTime);
+      subOsc.connect(lp);
+      subOsc.start();
+
+      // Howling Wind: Modulated sine wave
+      windOsc = audioCtx.createOscillator();
+      windOsc.type = 'sine';
+      windOsc.frequency.setValueAtTime(90, audioCtx.currentTime);
+      
+      const windGain = audioCtx.createGain();
+      windGain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+      windOsc.connect(windGain);
+      windGain.connect(droneGain);
+      windOsc.start();
+
+      // Low Frequency Oscillator (LFO) to create wind gusts
+      const lfo = audioCtx.createOscillator();
+      lfo.frequency.setValueAtTime(0.32, audioCtx.currentTime); // slow sway
+      const lfoGain = audioCtx.createGain();
+      lfoGain.gain.setValueAtTime(16, audioCtx.currentTime); // frequency drift
+      lfo.connect(lfoGain);
+      lfoGain.connect(windOsc.frequency);
+      lfo.start();
+
+      // Spooky Church Bell Chimes (Minor Third Chord)
+      const playBell = (freq, duration, delay = 0) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+        gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+        gain.gain.linearRampToValueAtTime(0.20, audioCtx.currentTime + delay + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + delay + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(audioCtx.currentTime + delay);
+        osc.stop(audioCtx.currentTime + delay + duration);
+      };
+      
+      // Play bell chord tolls: A3 (220Hz), C4 (261.63Hz), E4 (329.63Hz)
+      playBell(220, 4.5, 0.05);
+      playBell(261.63, 4.0, 0.45);
+      playBell(329.63, 3.5, 0.85);
+    }
+  } catch (e) {
+    console.error("Spooky Web Audio failed:", e);
+  }
+
+  // 2. Synthesize deep, slow, haunting Vietnamese voice
+  if (window.speechSynthesis) {
+    // Strip emojis to prevent speech synthesizer hiccups
+    const cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, '');
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Find matching Vietnamese localized voice
+    const voices = window.speechSynthesis.getVoices();
+    const viVoice = voices.find(v => v.lang.startsWith('vi'));
+    if (viVoice) {
+      utterance.voice = viVoice;
+    }
+
+    utterance.pitch = 0.52; // Very deep, ominous tone
+    utterance.rate = 0.73;  // Slow, theatrical speed
+    utterance.volume = 1.0;
+
+    window.speechSynthesis.speak(utterance);
+  }
+};
+
+const stopCreepySpeech = () => {
+  if (typeof window === 'undefined') return;
+
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+
+  // Smoothly fade out ambient rumble context
+  try {
+    if (audioCtx && droneGain) {
+      droneGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      droneGain.gain.setValueAtTime(droneGain.gain.value, audioCtx.currentTime);
+      droneGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.2);
+      
+      setTimeout(() => {
+        try {
+          if (subOsc) { subOsc.stop(); subOsc = null; }
+          if (windOsc) { windOsc.stop(); windOsc = null; }
+          if (audioCtx && audioCtx.state !== 'closed') {
+            audioCtx.close().then(() => { audioCtx = null; });
+          }
+        } catch (err) {}
+      }, 1500);
+    }
+  } catch (e) {}
+};
+
 export default function Game() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -289,6 +429,18 @@ export default function Game() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatLog]);
+
+  // Trigger spooky narration reading when narration state changes
+  useEffect(() => {
+    if (narration && narration.text) {
+      playCreepySpeech(narration.text, narration.type);
+    } else {
+      stopCreepySpeech();
+    }
+    return () => {
+      stopCreepySpeech();
+    };
+  }, [narration]);
 
   // Chat console draggable & resizable states
   const [chatPosition, setChatPosition] = useState({ x: 0, y: 0 });
@@ -451,11 +603,11 @@ export default function Game() {
     s.on('game:over', (data) => {
       setPhase('gameover');
       setGameOverData(data);
-      setNarration({ text: `🏆 KẾT QUẢ: PHE ${data.winner || 'GAME OVER'} CHIẾN THẮNG!`, visible: true });
+      setNarration({ text: `🏆 KẾT QUẢ: PHE ${data.winner || 'GAME OVER'} CHIẾN THẮNG!`, type: 'game_over', visible: true });
     });
 
-    s.on('narration:display', ({ text, duration }) => {
-      setNarration({ text, visible: true });
+    s.on('narration:display', ({ text, type, duration }) => {
+      setNarration({ text, type, visible: true });
       setTimeout(() => setNarration(null), duration || 5000);
     });
 
