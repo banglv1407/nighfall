@@ -1062,6 +1062,7 @@ export default function Game() {
                           <div className="font-cinzel text-[#e2e8f0] truncate flex items-center gap-1.5">
                             <span className={!p.isAlive ? 'line-through text-gray-500' : ''}>{p.username}</span>
                             {p.isAdmin && <span className="text-[#f59e0b] text-[10px]" title="Host">👑</span>}
+                            {p.isBot && <span className="text-[#3b82f6] text-[8px] px-1 py-0.5 rounded bg-[#3b82f6]/10 border border-[#3b82f6]/30 font-bold font-cinzel">BOT</span>}
                             {sid === defendantSocketId && <span className="text-[#a855f7] text-[10px] font-bold">⚖️ BỊ CÁO</span>}
                           </div>
                         </div>

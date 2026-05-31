@@ -518,6 +518,7 @@ function getPublicState() {
           isAlive: p.isAlive,
           loverId: p.loverId, 
           role: p.role === 'spectator' ? 'spectator' : undefined,
+          isBot: p.isBot,
         },
       ])
     ),
@@ -531,14 +532,60 @@ function getPublicState() {
 
 // --- GAME LOGIC: SESSION LAUNCHER ---
 function startGameSession() {
+  const initialSids = Object.keys(gameState.players);
+  if (initialSids.length === 0) return;
+
+  const realPlayers = initialSids.filter(sid => !gameState.players[sid].isAdmin);
+  let total = realPlayers.length;
+
+  // Add bots if total real players is less than 10
+  if (total < 10) {
+    const botsNeeded = 10 - total;
+    console.log(`🤖 Seeding ${botsNeeded} bots to reach minimum of 10 players.`);
+    
+    const botNames = [
+      "Linh_Hồn_Gió", "Sói_Cô_Độc", "Thợ_Săn_Bão", "Phù_Thủy_Đá", 
+      "Bác_Thợ_Rèn", "Chị_May_Vá", "Dân_Chài_Anh", "Cô_Bán_Hoa", 
+      "Trưởng_Làng_Lão", "Thầy_Cúng_Nam", "Chú_Tiều_Phu", "Cô_Thủ_Thư",
+      "Anh_Lính_Gác", "Bác_Sĩ_Tâm", "Thầy_Đồ_Nho", "Bé_Bán_Diêm"
+    ];
+    
+    // Shuffle bot names
+    const shuffledNames = botNames.sort(() => Math.random() - 0.5);
+    
+    for (let i = 0; i < botsNeeded; i++) {
+      const botId = `bot_${Math.random().toString(36).substr(2, 9)}`;
+      const name = shuffledNames[i % shuffledNames.length];
+      const genders = ["male", "female"];
+      const hairStyles = ["short", "long", "ponytail", "curly", "bun", "mohawk", "wavy"];
+      const hairColors = ["#1a1a1a", "#d97706", "#991b1b", "#2563eb", "#059669", "#7c3aed"];
+      
+      gameState.players[botId] = {
+        id: botId,
+        username: `🤖 ${name}`,
+        gender: genders[Math.floor(Math.random() * genders.length)],
+        hairStyle: hairStyles[Math.floor(Math.random() * hairStyles.length)],
+        hairColor: hairColors[Math.floor(Math.random() * hairColors.length)],
+        isAdmin: false,
+        x: (Math.random() - 0.5) * 12,
+        y: (Math.random() - 0.5) * 12,
+        online: true,
+        isAlive: true,
+        role: 'villager',
+        loverId: null,
+        guardLastProtected: null,
+        isBot: true,
+      };
+    }
+  }
+
+  // Recalculate player list including bots
   const sids = Object.keys(gameState.players);
-  if (sids.length === 0) return;
-
   const playerSids = sids.filter(sid => !gameState.players[sid].isAdmin);
-  const total = playerSids.length;
+  total = playerSids.length;
 
-  console.log(`🚀 Starting game session with ${total} players (excluding Host).`);
-  logSystemMsg(`Bắt đầu chia bài cho ${total} người chơi.`);
+  console.log(`🚀 Starting game session with ${total} players (including bots, excluding Host).`);
+  logSystemMsg(`Bắt đầu chia bài cho ${total} người chơi (bao gồm cả Bots).`);
 
   // 1. Reset dynamic stats
   gameState.nightNumber = 0;
@@ -713,6 +760,9 @@ function enterNightPhase() {
   setTimeout(() => {
     syncWitchPrompts();
   }, 1000);
+
+  // Automatically execute bots night actions
+  simulateBotNightActions();
 }
 
 function syncWitchPrompts() {
@@ -880,6 +930,9 @@ function enterVotingPhase() {
     type: 'voting_start',
     duration: 10000,
   });
+
+  // Automatically execute bots voting actions
+  simulateBotDaytimeVotes();
 }
 
 function enterDefensePhase() {
@@ -934,6 +987,9 @@ function enterRevotePhase() {
     type: 'revote_start',
     duration: 6000,
   });
+
+  // Automatically execute bots revotes
+  simulateBotRevotes();
 }
 
 function resolveExecutionPhase() {
@@ -1167,6 +1223,153 @@ function resetGameSession() {
   io.to('village').emit('game:state', getPublicState());
   logSystemMsg('Thiết lập lại phòng chờ Lobby.');
 }
+
+// ============================================================
+// 🤖 AUTHORITATIVE BOT SIMULATION & GAMEPLAY DECISIONS ENGINE
+// ============================================================
+
+function simulateBotNightActions() {
+  if (gameState.phase !== 'night') return;
+
+  const players = Object.values(gameState.players);
+  const aliveBots = players.filter(p => p.isBot && p.isAlive);
+
+  aliveBots.forEach(p => {
+    const sid = Object.keys(gameState.players).find(key => gameState.players[key] === p);
+    if (!sid) return;
+
+    const aliveOthers = Object.entries(gameState.players)
+      .filter(([osid, op]) => op.isAlive && osid !== sid && op.role !== 'spectator' && !op.isAdmin)
+      .map(([osid, op]) => ({ socketId: osid, username: op.username }));
+
+    if (aliveOthers.length === 0) return;
+
+    if (p.role === 'seer' && !gameState.nightActions.seerTarget) {
+      const target = aliveOthers[Math.floor(Math.random() * aliveOthers.length)];
+      gameState.nightActions.seerTarget = target.socketId;
+      logSystemMsg(`[BOT Tiên Tri] ${p.username} âm thầm soi thân phận.`);
+    } 
+    
+    else if (p.role === 'guard' && !gameState.nightActions.guardTarget) {
+      const validTargets = aliveOthers.filter(t => t.socketId !== p.guardLastProtected);
+      if (validTargets.length > 0) {
+        const target = validTargets[Math.floor(Math.random() * validTargets.length)];
+        gameState.nightActions.guardTarget = target.socketId;
+        p.guardLastProtected = target.socketId;
+        logSystemMsg(`[BOT Bảo Vệ] ${p.username} chọn người bảo vệ.`);
+      }
+    } 
+    
+    else if (p.role === 'werewolf') {
+      if (!gameState.nightActions.werewolfTarget) {
+        const nonWolves = aliveOthers.filter(t => gameState.players[t.socketId]?.role !== 'werewolf');
+        if (nonWolves.length > 0) {
+          const target = nonWolves[Math.floor(Math.random() * nonWolves.length)];
+          gameState.nightActions.werewolfTarget = target.socketId;
+          logSystemMsg(`[BOT Sói] ${p.username} cắn ${target.username}.`);
+        }
+      }
+    } 
+    
+    else if (p.role === 'cupid' && gameState.nightNumber === 1 && !gameState.nightActions.cupidDone) {
+      if (aliveOthers.length >= 2) {
+        const shuffled = [...aliveOthers].sort(() => Math.random() - 0.5);
+        const loverId1 = shuffled[0].socketId;
+        const loverId2 = shuffled[1].socketId;
+        
+        gameState.nightActions.cupidLover1 = loverId1;
+        gameState.nightActions.cupidLover2 = loverId2;
+        gameState.players[loverId1].loverId = loverId2;
+        gameState.players[loverId2].loverId = loverId1;
+        gameState.nightActions.cupidDone = true;
+        
+        if (!gameState.players[loverId1].isBot) {
+          io.to(loverId1).emit('lover:reveal', { partnerUsername: gameState.players[loverId2].username });
+        }
+        if (!gameState.players[loverId2].isBot) {
+          io.to(loverId2).emit('lover:reveal', { partnerUsername: gameState.players[loverId1].username });
+        }
+        logSystemMsg(`[BOT Cupid] ghép đôi ${shuffled[0].username} và ${shuffled[1].username}.`);
+      }
+    }
+  });
+
+  setTimeout(() => {
+    simulateBotWitchActions();
+  }, 1200);
+}
+
+function simulateBotWitchActions() {
+  if (gameState.phase !== 'night') return;
+
+  const players = Object.values(gameState.players);
+  const witch = players.find(p => p.isBot && p.isAlive && p.role === 'witch');
+  if (!witch) return;
+
+  const sid = Object.keys(gameState.players).find(key => gameState.players[key] === witch);
+  if (!sid) return;
+
+  const aliveOthers = Object.entries(gameState.players)
+    .filter(([osid, op]) => op.isAlive && osid !== sid && op.role !== 'spectator' && !op.isAdmin)
+    .map(([osid, op]) => ({ socketId: osid, username: op.username }));
+
+  if (gameState.nightActions.witchDone) return;
+
+  const targetSid = gameState.nightActions.werewolfTarget;
+  
+  if (targetSid && gameState.witchHasHeal && Math.random() < 0.6) {
+    gameState.nightActions.witchHeal = true;
+    gameState.nightActions.witchDone = true;
+    logSystemMsg(`[BOT Phù Thủy] cứu sống ${gameState.players[targetSid].username}.`);
+  } else if (gameState.witchHasPoison && Math.random() < 0.2 && aliveOthers.length > 0) {
+    const victim = aliveOthers[Math.floor(Math.random() * aliveOthers.length)];
+    gameState.nightActions.witchPoison = victim.socketId;
+    gameState.nightActions.witchDone = true;
+    logSystemMsg(`[BOT Phù Thủy] đầu độc ${victim.username}.`);
+  } else {
+    gameState.nightActions.witchDone = true;
+    logSystemMsg(`[BOT Phù Thủy] quyết định không dùng thuốc.`);
+  }
+}
+
+function simulateBotDaytimeVotes() {
+  Object.entries(gameState.players).forEach(([sid, p]) => {
+    if (p.isBot && p.isAlive) {
+      const validTargets = Object.keys(gameState.players).filter(
+        osid => osid !== sid && gameState.players[osid].isAlive && gameState.players[osid].role !== 'spectator' && !gameState.players[osid].isAdmin
+      );
+      if (validTargets.length > 0) {
+        const targetSid = validTargets[Math.floor(Math.random() * validTargets.length)];
+        gameState.votes[sid] = targetSid;
+      }
+    }
+  });
+  io.to('village').emit('vote:update', getVoteCounts());
+}
+
+function simulateBotRevotes() {
+  Object.entries(gameState.players).forEach(([sid, p]) => {
+    if (p.isBot && p.isAlive && sid !== gameState.defendantSocketId) {
+      gameState.revotes[sid] = Math.random() > 0.55 ? 'kill' : 'save';
+    }
+  });
+  io.to('village').emit('revote:update', getRevoteCounts());
+}
+
+// --- BOT SYSTEM: AUTOMATIC MOVEMENT INTERVAL ---
+setInterval(() => {
+  if (gameState.phase === 'lobby' || gameState.phase === 'day' || gameState.phase === 'vote') {
+    Object.entries(gameState.players).forEach(([sid, p]) => {
+      if (p.isBot && p.isAlive && Math.random() < 0.25) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = 3 + Math.random() * 11;
+        p.x = Math.cos(angle) * r;
+        p.y = Math.sin(angle) * r;
+        io.to('village').emit('player:moved', { id: sid, x: p.x, y: p.y });
+      }
+    });
+  }
+}, 4000);
 
 // --- SERVER ON PORT MOUNT ---
 server.listen(PORT, '0.0.0.0', () => {
