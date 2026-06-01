@@ -687,6 +687,10 @@ export default function Game() {
               const firstDead = deadIds[0];
               const pos = cinematic.deadPlayerPositions[firstDead];
               await ad.playWerewolfKill({ x: pos.x, z: pos.y }, firstDead);
+              // Alive villagers gather around the corpse
+              if (villageRef.current?.gatherAt) {
+                villageRef.current.gatherAt(pos.x, pos.y, firstDead);
+              }
             }
           } else if (type === 'execution' && cinematic.defendantPosition) {
             await ad.playExecution(

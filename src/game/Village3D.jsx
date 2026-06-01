@@ -619,6 +619,24 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
     get actionDirector() {
       return actionDirectorRef.current;
     },
+    gatherAt: (centerX, centerZ, excludeSocketId) => {
+      const meshes = playerMeshesRef.current;
+      const aliveEntries = Object.entries(meshes)
+        .filter(([sid, entry]) => sid !== excludeSocketId && entry.isAlive !== false);
+
+      const count = aliveEntries.length;
+      if (count === 0) return;
+
+      const radius = Math.min(1.8 + count * 0.25, 4.0);
+
+      aliveEntries.forEach(([sid, entry], i) => {
+        const angle = (i / count) * Math.PI * 2;
+        const spread = 0.2 + Math.random() * 0.3;
+        const tx = centerX + Math.cos(angle) * (radius + spread);
+        const tz = centerZ + Math.sin(angle) * (radius + spread);
+        entry.targetPosition.set(tx, 0, tz);
+      });
+    },
   }));
 
   return (
