@@ -53,10 +53,13 @@ function TargetSymbol(props) {
 // ============================================================
 // CinematicNarration (Typewriter cinematic text effects)
 // ============================================================
-const CinematicNarration = ({ text, type }) => {
+const CinematicNarration = ({ text, type, onClose }) => {
   const [displayedText, setDisplayedText] = useState('');
+  const [typingDone, setTypingDone] = useState(false);
 
   useEffect(() => {
+    setDisplayedText('');
+    setTypingDone(false);
     let current = '';
     let i = 0;
     const interval = setInterval(() => {
@@ -66,6 +69,7 @@ const CinematicNarration = ({ text, type }) => {
         i++;
       } else {
         clearInterval(interval);
+        setTypingDone(true);
       }
     }, 20); // Fast typewriting (20ms per char)
     return () => clearInterval(interval);
@@ -92,7 +96,8 @@ const CinematicNarration = ({ text, type }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className={`absolute inset-0 z-50 flex flex-col items-center justify-center p-8 pointer-events-none select-none overflow-hidden ${
+      onClick={onClose}
+      className={`absolute inset-0 z-50 flex flex-col items-center justify-center p-8 cursor-pointer select-none overflow-hidden ${
         isWerewolfKill ? 'bg-black/90' : 'bg-black/85 backdrop-blur-md'
       }`}
     >
@@ -245,6 +250,17 @@ const CinematicNarration = ({ text, type }) => {
             ? 'from-transparent via-red-600 to-transparent shadow-[0_0_8px_rgba(220,38,38,0.8)]' 
             : 'from-transparent via-[#8b5cf6] to-transparent shadow-glow'
         }`} />
+
+        {typingDone && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0.4, 0.8, 0.4] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="mt-6 text-xs text-white/30 font-sans tracking-wider"
+          >
+            👆 Nhấn vào màn hình để đóng
+          </motion.p>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -647,6 +663,7 @@ export default function Game() {
       setPhase('gameover');
       setGameOverData(data);
       setNarration({ text: `🏆 KẾT QUẢ: PHE ${data.winner || 'GAME OVER'} CHIẾN THẮNG!`, type: 'game_over', visible: true });
+      setTimeout(() => setNarration(null), 5000);
     });
 
     s.on('narration:display', ({ text, type, duration }) => {
@@ -862,7 +879,7 @@ export default function Game() {
           {/* Typewriter Cinematic Narration Overlay */}
           <AnimatePresence>
             {narration && (
-              <CinematicNarration text={narration.text} type={narration.type} />
+              <CinematicNarration text={narration.text} type={narration.type} onClose={() => setNarration(null)} />
             )}
           </AnimatePresence>
 
