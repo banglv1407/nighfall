@@ -4,14 +4,21 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import ActionDirector from './ActionDirector';
 
+// HD-2D Post-processing
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
 // ============================================================
 // DESIGN SYSTEM TOKENS & STYLES
 // ============================================================
 const COLORS = {
-  bg: 0x0a0e1a,         // Deep Space Dark (aligned with design system)
-  ground: 0x121c12,     // Dark forest ground
+  bg: 0x120c14,         // Warm HD-2D deep purple night
+  ground: 0x1a2e1a,     // Dark forest ground
   groundAccent: 0x1a2e1a,
-  houseWall: 0x423528,
+  houseWall: 0x5a4a3e,
   houseRoof: 0x7c2d12,   // Warm red roofs
   houseTrim: 0x8a7a5f,
   treeTrunk: 0x2e251b,
@@ -46,6 +53,9 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
   const mouseRef = useRef(new THREE.Vector2());
   const initializedRef = useRef(false);
   const actionDirectorRef = useRef(null);
+  const composerRef = useRef(null);
+  const bloomRef = useRef(null);
+  const bokehRef = useRef(null);
 
   // Decouple onMoveTo trigger to prevent Three.js scene recreation
   const onMoveToRef = useRef(onMoveTo);
@@ -65,7 +75,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
     // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(COLORS.bg);
-    scene.fog = new THREE.Fog(COLORS.bg, 38, 75);
+    scene.fog = new THREE.Fog(0x1a0e1e, 28, 60); // Warmer, closer fog for HD-2D diorama depth
     sceneRef.current = scene;
 
     // Camera (Isometric angle)
@@ -85,7 +95,34 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // CSS2D Renderer (Dynamic over-head HTML name badges)
+    // HD-2D Post-processing: EffectComposer pipeline
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+
+    // Unreal Bloom — warm glow for fire, lanterns, emissive windows
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(w, h),
+      0.6,   // strength
+      0.8,   // radius (spread)
+      0.1    // threshold (low = nearly everything bright glows)
+    );
+    composer.addPass(bloom);
+    bloomRef.current = bloom;
+
+    // Bokeh Depth of Field — tilt-shift diorama effect (HD-2D signature)
+    const bokeh = new BokehPass(scene, camera, {
+      focus: 22,
+      aperture: 0.008,
+      maxblur: 0.012,
+    });
+    composer.addPass(bokeh);
+    bokehRef.current = bokeh;
+
+    // Output to screen (required as final pass)
+    composer.addPass(new OutputPass());
+    composerRef.current = composer;
+
+    // CSS2D Renderer (Dynamic over-head HTML name badges — no post-processing)
     const labelRenderer = new CSS2DRenderer();
     labelRenderer.setSize(w, h);
     labelRenderer.domElement.style.position = 'absolute';
@@ -115,15 +152,15 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
       labelRenderer,
     });
 
-    // --- Lights Setup (Brightened Night mode) ---
-    const ambient = new THREE.AmbientLight(0x7c8ba6, 1.4);
+    // --- Lights Setup (HD-2D Warm Night) ---
+    const ambient = new THREE.AmbientLight(0x8c7b7e, 1.2);
     scene.add(ambient);
 
-    const hemi = new THREE.HemisphereLight(0xa5b4fc, 0x2e3b5e, 1.8);
+    const hemi = new THREE.HemisphereLight(0xb4a5d4, 0x3e2b3e, 1.6);
     scene.add(hemi);
 
-    // Moonlight (Bright silver directional light)
-    const moon = new THREE.DirectionalLight(0xdbeafe, 2.8);
+    // Moonlight (Warm silver for HD-2D diorama lighting)
+    const moon = new THREE.DirectionalLight(0xd4c8f0, 2.8);
     moon.position.set(-12, 20, 8);
     moon.castShadow = true;
     moon.shadow.mapSize.width = 2048;
@@ -184,6 +221,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
       camera.aspect = w2 / h2;
       camera.updateProjectionMatrix();
       renderer.setSize(w2, h2);
+      composer.setSize(w2, h2);
       labelRenderer.setSize(w2, h2);
     };
     window.addEventListener('resize', handleResize);
@@ -277,7 +315,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
           // --- ADMIN (ANGEL) MOTION & FLAPPING WINGS ---
           // 1. Move towards target (X and Z only)
           const targetXZ = new THREE.Vector3(target.x, group.position.y, target.z);
-          group.position.lerp(targetXZ, 0.025); // Slowed down from 0.1 for smooth, elegant flight
+          group.position.lerp(targetXZ, 0.015); // HD-2D slower glide
 
           // 2. Hover high in the sky
           group.position.y = 2.0 + Math.sin(time * 2.5) * 0.25;
@@ -316,7 +354,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
 
           if (dist > 0.05) {
             // 60FPS fluid lerp glide
-            group.position.lerp(target, 0.035); // Slowed down from 0.14 to walk gracefully
+            group.position.lerp(target, 0.02); // HD-2D slower glide
             
             // Lock height to ground plane
             group.position.y = 0;
@@ -331,7 +369,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
           }
 
           // Walking limb swing animation
-          const walkCycle = time * 6.0; // Slowed down limb swing to match the new velocity
+          const walkCycle = time * 4.0; // HD-2D slower walk
           if (legLeft) legLeft.rotation.x = Math.sin(walkCycle) * 0.55;
           if (legRight) legRight.rotation.x = -Math.sin(walkCycle) * 0.55;
           if (armLeft) {
@@ -380,7 +418,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
     });
 
       controls.update();
-      renderer.render(scene, camera);
+      composer.render();
       labelRenderer.render(scene, camera);
     };
     animate();
@@ -395,6 +433,10 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
       if (actionDirectorRef.current) {
         actionDirectorRef.current.cleanup();
         actionDirectorRef.current = null;
+      }
+      if (composerRef.current) {
+        composerRef.current.dispose();
+        composerRef.current = null;
       }
       renderer.dispose();
       labelRenderer.domElement.remove();
@@ -658,16 +700,16 @@ function buildHouses(scene) {
 function createHouse(scene, x, z, rot, wallColor, roofColor) {
   const group = new THREE.Group();
 
-  // Box walls
-  const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.85 });
+  // Box walls (Toon shading for HD-2D cel-shaded look)
+  const wallMat = new THREE.MeshToonMaterial({ color: wallColor });
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.7, 2.4), wallMat);
   body.position.y = 0.85;
   body.castShadow = true;
   body.receiveShadow = true;
   group.add(body);
 
-  // Roof (4-sided cone)
-  const roofMat = new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.9 });
+  // Roof (4-sided cone — Toon shading)
+  const roofMat = new THREE.MeshToonMaterial({ color: roofColor });
   const roof = new THREE.Mesh(new THREE.ConeGeometry(1.9, 0.9, 4), roofMat);
   roof.position.y = 1.7 + 0.45;
   roof.rotation.y = Math.PI / 4;
@@ -675,16 +717,16 @@ function createHouse(scene, x, z, rot, wallColor, roofColor) {
   group.add(roof);
 
   // Door
-  const doorMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.95 });
+  const doorMat = new THREE.MeshToonMaterial({ color: 0x27272a });
   const door = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.95), doorMat);
   door.position.set(0, 0.475, 1.205);
   group.add(door);
 
-  // Glowing Windows (Realtime dynamic warm illumination)
+  // Glowing Windows (HD-2D warm bloom)
   const winMat = new THREE.MeshStandardMaterial({
     color: 0xfef08a,
-    emissive: 0xeab308,
-    emissiveIntensity: 1.2,
+    emissive: 0xfacc15,
+    emissiveIntensity: 4.0,
   });
   const winPos = [[-0.65, 0.8, 1.205], [0.65, 0.8, 1.205]];
   winPos.forEach(([wx, wy, wz]) => {

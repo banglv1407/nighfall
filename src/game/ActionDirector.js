@@ -35,7 +35,7 @@ export default class ActionDirector {
   // --- CAMERA ---
 
   /** Smoothly move camera to a target position and lookAt over duration (ms) */
-  async cameraMove(position, lookAt = DEFAULT_LOOK, duration = 1200) {
+  async cameraMove(position, lookAt = DEFAULT_LOOK, duration = 1800) {
     const startPos = this.camera.position.clone();
     const targetPos = new THREE.Vector3(position.x, position.y, position.z);
     const startTarget = this.controls.target.clone();
@@ -46,8 +46,8 @@ export default class ActionDirector {
       const animate = () => {
         const elapsed = performance.now() - startTime;
         const t = Math.min(elapsed / duration, 1);
-        // Ease-out cubic
-        const ease = 1 - Math.pow(1 - t, 3);
+        // Ease-out quart (HD-2D cinematic smooth)
+        const ease = 1 - Math.pow(1 - t, 4);
 
         this.camera.position.lerpVectors(startPos, targetPos, ease);
         this.controls.target.lerpVectors(startTarget, endTarget, ease);
@@ -64,7 +64,7 @@ export default class ActionDirector {
   }
 
   /** Quick zoom-in to a 3D position (dolly) */
-  async cameraZoomIn(worldPos, distance = 5, duration = 800) {
+  async cameraZoomIn(worldPos, distance = 5, duration = 1200) {
     const pos = new THREE.Vector3(worldPos.x, worldPos.y, worldPos.z);
     const direction = new THREE.Vector3(1, 0.6, 1).normalize();
     const targetCameraPos = pos.clone().add(direction.multiplyScalar(distance));
@@ -73,7 +73,7 @@ export default class ActionDirector {
   }
 
   /** Return camera to home position */
-  async cameraHome(duration = 1000) {
+  async cameraHome(duration = 1500) {
     this.controls.target.set(0, 0, 0);
     return this.cameraMove(HOME_CAM, DEFAULT_LOOK, duration);
   }
@@ -329,13 +329,13 @@ export default class ActionDirector {
     this.camera.position.copy(startPos);
     this.controls.update();
 
-    const duration = 2500;
+    const duration = 4000;
     const startTime = performance.now();
     return new Promise(resolve => {
       const arc = () => {
         const elapsed = performance.now() - startTime;
         const t = Math.min(elapsed / duration, 1);
-        const ease = 1 - Math.pow(1 - t, 3);
+        const ease = 1 - Math.pow(1 - t, 4);
         this.camera.position.lerpVectors(startPos, endPos, ease);
         this.controls.target.set(0, 0, 0);
         this.controls.update();
@@ -357,13 +357,13 @@ export default class ActionDirector {
 
     const pos = new THREE.Vector3(victimPosition.x, 0, victimPosition.z);
 
-    // 1. Quick zoom-in
-    await this.cameraZoomIn(pos, 4, 700);
+    // 1. Slow zoom-in
+    await this.cameraZoomIn(pos, 4, 1200);
 
     // 2. Red flash + shake simultaneously
     await Promise.all([
-      this.flash(0xff0000, 0.7, 600),
-      this.shake(0.6, 500),
+      this.flash(0xff0000, 0.7, 1000),
+      this.shake(0.6, 800),
     ]);
 
     // 3. Blood splatter + particles
@@ -373,11 +373,11 @@ export default class ActionDirector {
     // 4. Highlight victim with red glow
     this.addHighlight(victimSocketId, victimPosition, 0xff4444);
 
-    // 5. Hold for a moment
-    await this._sleep(800);
+    // 5. Hold for dramatic pause
+    await this._sleep(1500);
 
     // 6. Return camera home
-    await this.cameraHome(1000);
+    await this.cameraHome(1500);
     this.unlockOrbit();
   }
 
@@ -388,17 +388,17 @@ export default class ActionDirector {
 
     const pos = new THREE.Vector3(executedPosition.x, 0, executedPosition.z);
 
-    await this.cameraZoomIn(pos, 3, 600);
+    await this.cameraZoomIn(pos, 3, 1000);
     await Promise.all([
-      this.flash(0xf59e0b, 0.5, 500), // Gold flash
-      this.shake(0.3, 400),
+      this.flash(0xf59e0b, 0.5, 800), // Gold flash
+      this.shake(0.3, 700),
     ]);
 
     this.addHighlight(executedSocketId, executedPosition, 0xf59e0b);
     this.spawnParticles(executedPosition, 20, 0xfbbf24, 2, 1500);
 
-    await this._sleep(600);
-    await this.cameraHome(1000);
+    await this._sleep(1200);
+    await this.cameraHome(1500);
     this.unlockOrbit();
   }
 
@@ -409,12 +409,12 @@ export default class ActionDirector {
 
     const pos = new THREE.Vector3(sparedPosition.x, 0, sparedPosition.z);
 
-    await this.cameraZoomIn(pos, 4, 600);
-    await this.flash(0x10b981, 0.4, 600);
+    await this.cameraZoomIn(pos, 4, 1000);
+    await this.flash(0x10b981, 0.4, 1000);
 
     this.addHighlight(sparedSocketId, sparedPosition, 0x10b981);
-    await this._sleep(500);
-    await this.cameraHome(1000);
+    await this._sleep(1000);
+    await this.cameraHome(1500);
     this.unlockOrbit();
   }
 
@@ -424,15 +424,15 @@ export default class ActionDirector {
     this.clearHighlights();
 
     const pos = new THREE.Vector3(playerPosition.x, 0, playerPosition.z);
-    await this.cameraZoomIn(pos, 4, 500);
+    await this.cameraZoomIn(pos, 4, 800);
     await Promise.all([
-      this.flash(0x22c55e, 0.45, 700),
-      this.shake(0.15, 300),
+      this.flash(0x22c55e, 0.45, 900),
+      this.shake(0.15, 500),
     ]);
     this.spawnParticles(playerPosition, 25, 0x22c55e, 2, 1200);
     this.addHighlight(playerSocketId, playerPosition, 0x22c55e);
-    await this._sleep(500);
-    await this.cameraHome(800);
+    await this._sleep(800);
+    await this.cameraHome(1200);
     this.unlockOrbit();
   }
 
@@ -453,14 +453,14 @@ export default class ActionDirector {
     // Slow zoom out
     const startPos = this.camera.position.clone();
     const endPos = new THREE.Vector3(0, 25, 35);
-    const duration = 2000;
+    const duration = 3000;
     const startTime = performance.now();
 
     return new Promise(resolve => {
       const arc = () => {
         const elapsed = performance.now() - startTime;
         const t = Math.min(elapsed / duration, 1);
-        const ease = 1 - Math.pow(1 - t, 3);
+        const ease = 1 - Math.pow(1 - t, 4);
         this.camera.position.lerpVectors(startPos, endPos, ease);
         this.controls.target.set(0, 0, 0);
         this.controls.update();
@@ -475,14 +475,14 @@ export default class ActionDirector {
     });
   }
 
-  /** Seer inspection — quick zoom, flash blue, then back */
+  /** Seer inspection — zoom, flash blue, then back */
   async playSeerInspect(playerPosition) {
     const pos = new THREE.Vector3(playerPosition.x, 0, playerPosition.z);
-    await this.cameraZoomIn(pos, 3.5, 500);
-    await this.flash(0x3b82f6, 0.4, 500);
+    await this.cameraZoomIn(pos, 3.5, 800);
+    await this.flash(0x3b82f6, 0.4, 800);
     this.spawnParticles(playerPosition, 15, 0x3b82f6, 1.5, 1000);
-    await this._sleep(300);
-    await this.cameraHome(800);
+    await this._sleep(600);
+    await this.cameraHome(1200);
   }
 
   // --- CLEANUP ---
