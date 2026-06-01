@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useImperativeHandle, forwardRef, useCallback 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import ActionDirector from './ActionDirector';
 
 // ============================================================
 // DESIGN SYSTEM TOKENS & STYLES
@@ -44,6 +45,7 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef = useRef(new THREE.Vector2());
   const initializedRef = useRef(false);
+  const actionDirectorRef = useRef(null);
 
   // Decouple onMoveTo trigger to prevent Three.js scene recreation
   const onMoveToRef = useRef(onMoveTo);
@@ -103,6 +105,15 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
     controls.target.set(0, 0, 0);
     controls.update();
     controlsRef.current = controls;
+
+    // Initialize ActionDirector
+    actionDirectorRef.current = new ActionDirector({
+      scene,
+      camera,
+      controls,
+      renderer,
+      labelRenderer,
+    });
 
     // --- Lights Setup (Brightened Night mode) ---
     const ambient = new THREE.AmbientLight(0x7c8ba6, 1.4);
@@ -381,6 +392,10 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
       cancelAnimationFrame(animFrameRef.current);
       window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('click', handleClick);
+      if (actionDirectorRef.current) {
+        actionDirectorRef.current.cleanup();
+        actionDirectorRef.current = null;
+      }
       renderer.dispose();
       labelRenderer.domElement.remove();
       container.innerHTML = '';
@@ -558,6 +573,9 @@ const Village3D = forwardRef(({ players, mySocketId, onMoveTo, phase, emotes }, 
       if (controlsRef.current) {
         controlsRef.current.target.set(x, 0, z);
       }
+    },
+    get actionDirector() {
+      return actionDirectorRef.current;
     },
   }));
 

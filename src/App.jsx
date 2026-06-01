@@ -108,7 +108,6 @@ const Navbar = () => {
           {user ? (
             <>
               <Link to="/game" className="flex items-center gap-2 bg-[#1a2035] border border-[#8b5cf6]/30 rounded-full px-4 py-1.5 text-sm font-cinzel text-[#e2e8f0] hover:border-[#8b5cf6]/60 transition-all">
-                <span>{user.character.emoji}</span>
                 <span>{user.username}</span>
               </Link>
               <button onClick={() => { logout(); navigate('/'); }}

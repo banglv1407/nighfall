@@ -399,6 +399,7 @@ export default function Game() {
   const [loverPartner, setLoverPartner] = useState(null);
   const [actionRequest, setActionRequest] = useState(null);
   const [actionResult, setActionResult] = useState(null);
+  const [gameOverData, setGameOverData] = useState(null);
   
   // Selection targets
   const [selectedTarget1, setSelectedTarget1] = useState('');
@@ -662,11 +663,49 @@ export default function Game() {
     s.on('game:over', (data) => {
       setPhase('gameover');
       setGameOverData(data);
-      setNarration({ text: `🏆 KẾT QUẢ: PHE ${data.winner || 'GAME OVER'} CHIẾN THẮNG!`, type: 'game_over', visible: true });
-      setTimeout(() => setNarration(null), 5000);
+      setNarration(null); // Clear narration overlay so it doesn't block gameover modal
+
+      // Trigger game over cinematic
+      if (villageRef.current?.actionDirector && data.winnerPositions?.length > 0) {
+        const ad = villageRef.current.actionDirector;
+        const winnerPositions = data.winnerPositions.map(w => ({ x: w.x, y: 0, z: w.y }));
+        ad.playGameOver(winnerPositions);
+      }
     });
 
-    s.on('narration:display', ({ text, type, duration }) => {
+    s.on('narration:display', async ({ text, type, duration, cinematic }) => {
+      const hasCinematic = cinematic || type === 'night_start';
+
+      // Play cinematic FIRST, then show narration overlay
+      if (hasCinematic && villageRef.current?.actionDirector) {
+        const ad = villageRef.current.actionDirector;
+
+        if (cinematic) {
+          if (type === 'werewolf_kill' && cinematic.deadPlayerPositions) {
+            const deadIds = Object.keys(cinematic.deadPlayerPositions);
+            if (deadIds.length > 0) {
+              const firstDead = deadIds[0];
+              const pos = cinematic.deadPlayerPositions[firstDead];
+              await ad.playWerewolfKill({ x: pos.x, z: pos.y }, firstDead);
+            }
+          } else if (type === 'execution' && cinematic.defendantPosition) {
+            await ad.playExecution(
+              { x: cinematic.defendantPosition.x, z: cinematic.defendantPosition.y },
+              cinematic.defendantSocketId
+            );
+          } else if (type === 'spared' && cinematic.defendantPosition) {
+            await ad.playSpared(
+              { x: cinematic.defendantPosition.x, z: cinematic.defendantPosition.y },
+              cinematic.defendantSocketId
+            );
+          }
+        } else if (type === 'night_start') {
+          await ad.playNightStart();
+        }
+        // game_over_wolves handled in game:over event
+      }
+
+      // Show narration AFTER cinematic completes
       setNarration({ text, type, visible: true });
       setTimeout(() => setNarration(null), duration || 30000);
     });
@@ -878,7 +917,7 @@ export default function Game() {
 
           {/* Typewriter Cinematic Narration Overlay */}
           <AnimatePresence>
-            {narration && (
+            {narration && phase !== 'gameover' && (
               <CinematicNarration text={narration.text} type={narration.type} onClose={() => setNarration(null)} />
             )}
           </AnimatePresence>

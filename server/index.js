@@ -904,8 +904,17 @@ function enterDaytimePhase() {
 
   gameState.lastNightCasualties = uniqueKilled;
 
+  // Build dead player positions for ActionDirector
+  const deadPlayerPositions = {};
+  uniqueKilled.forEach(sid => {
+    const p = gameState.players[sid];
+    if (p) {
+      deadPlayerPositions[sid] = { x: p.x, y: p.y };
+    }
+  });
+
   io.to('village').emit('game:phase', { phase: 'day' });
-  io.to('village').emit('death:announce', { deadPlayerIds: uniqueKilled });
+  io.to('village').emit('death:announce', { deadPlayerIds: uniqueKilled, deadPlayerPositions });
   
   let text = "";
   if (uniqueKilled.length === 0) {
@@ -919,6 +928,14 @@ function enterDaytimePhase() {
     text,
     type: uniqueKilled.length === 0 ? 'no_deaths' : 'werewolf_kill',
     duration: 30000,
+    cinematic: uniqueKilled.length > 0 ? {
+      deadPlayerIds: uniqueKilled,
+      deadPlayerPositions,
+      wolfTarget: gameState.nightActions.werewolfTarget,
+      wolfTargetPosition: gameState.nightActions.werewolfTarget && gameState.players[gameState.nightActions.werewolfTarget]
+        ? { x: gameState.players[gameState.nightActions.werewolfTarget].x, y: gameState.players[gameState.nightActions.werewolfTarget].y }
+        : null,
+    } : null,
   });
 
   io.to('village').emit('game:state', getPublicState());
@@ -1096,6 +1113,10 @@ function resolveExecutionPhase() {
       text,
       type: 'execution',
       duration: 30000,
+      cinematic: {
+        defendantSocketId: gameState.defendantSocketId,
+        defendantPosition: { x: defendant.x, y: defendant.y },
+      },
     });
   } else {
     const text = getRandomNarration('spared', { name: defendant.username });
@@ -1103,6 +1124,10 @@ function resolveExecutionPhase() {
       text,
       type: 'spared',
       duration: 30000,
+      cinematic: {
+        defendantSocketId: gameState.defendantSocketId,
+        defendantPosition: { x: defendant.x, y: defendant.y },
+      },
     });
   }
 
@@ -1129,10 +1154,18 @@ function checkWinConditions() {
   // 1. Werewolf victory condition
   if (wolves.length >= villagers.length) {
     gameState.phase = 'gameover';
+    
+    // Build winner positions for cinematic
+    const winnerPositions = wolves.filter(w => !w.isBot).map(w => {
+      const sid = Object.keys(gameState.players).find(key => gameState.players[key] === w);
+      return sid ? { socketId: sid, x: w.x, y: w.y } : null;
+    }).filter(Boolean);
+
     io.to('village').emit('game:phase', { phase: 'gameover' });
     io.to('village').emit('game:over', { 
       winner: '🐺 ĐÀN SÓI',
-      historyLogs: gameState.historyLogs
+      historyLogs: gameState.historyLogs,
+      winnerPositions,
     });
     io.to('village').emit('narration:display', {
       text: `🏆 TRÒ CHƠI KẾT THÚC: Phe Sói cắn nuốt toàn bộ ngôi làng! Phe Sói thắng cuộc!`,
@@ -1145,10 +1178,17 @@ function checkWinConditions() {
   // 2. Villager victory condition
   if (wolves.length === 0) {
     gameState.phase = 'gameover';
+    
+    const winnerPositions = villagers.filter(v => !v.isBot).map(v => {
+      const sid = Object.keys(gameState.players).find(key => gameState.players[key] === v);
+      return sid ? { socketId: sid, x: v.x, y: v.y } : null;
+    }).filter(Boolean);
+
     io.to('village').emit('game:phase', { phase: 'gameover' });
     io.to('village').emit('game:over', { 
       winner: '👤 DÂN LÀNG',
-      historyLogs: gameState.historyLogs
+      historyLogs: gameState.historyLogs,
+      winnerPositions,
     });
     io.to('village').emit('narration:display', {
       text: `🏆 TRÒ CHƠI KẾT THÚC: Dân làng đã tiêu diệt hoàn toàn lũ Sói độc ác! Dân Làng thắng cuộc!`,
